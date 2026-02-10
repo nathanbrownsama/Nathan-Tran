@@ -1,3 +1,7 @@
+export type AppMode = 'mobile' | 'saas';
+
+// --- Shared Types ---
+
 export type PlanType = 'weekly' | 'monthly' | 'annual' | 'lifetime';
 
 export interface ScenarioMeta {
@@ -10,6 +14,8 @@ export interface GrowthInput {
   startValue: number;
   growthRateMonthly: number; // 0.0 to 1.0 (e.g. 0.05 for 5% MoM)
 }
+
+// --- Mobile Specific Types ---
 
 export interface ChannelMetric {
   id: string;
@@ -48,8 +54,6 @@ export interface PlanConfig {
 
 export interface RetentionInput {
   mode: 'simple' | 'advanced';
-  
-  // Simple Mode Params
   monthly: {
     month1Churn: number;
     steadyStateChurn: number;
@@ -63,12 +67,10 @@ export interface RetentionInput {
     week1Churn: number;
     steadyStateChurn: number;
   };
-
-  // Advanced Mode: Manual arrays of survival rates (0.0 to 1.0) for the first 24 periods
   advancedSurvival: {
-    weekly: number[]; // 1..24 weeks
-    monthly: number[]; // 1..24 months
-    annual: number[]; // 1..5 years
+    weekly: number[];
+    monthly: number[];
+    annual: number[];
   };
 }
 
@@ -91,17 +93,69 @@ export interface ScenarioInput {
   costs: CostsInput;
 }
 
-// Result Interfaces
+// --- SaaS Specific Types ---
+
+export type SaasBillingPeriod = 'monthly' | 'annual';
+
+export interface SaasPlan {
+  id: string;
+  name: string;
+  price: number;
+  billingPeriod: SaasBillingPeriod;
+}
+
+export interface SaasAcquisition {
+  adSpend: GrowthInput;
+  cpc: GrowthInput; // Cost Per Click/Visitor
+  organicSessions: GrowthInput;
+}
+
+export interface SaasFunnel {
+  visitorToSignupRate: number;
+  signupToActivationRate: number;
+  activationToTrialRate: number;
+  trialToPaidRate: number;
+  refundRate: number;
+}
+
+export interface SaasRetention {
+  monthlyChurn: number; // Simple monthly churn
+  annualRenewalRate: number; // % who renew annually
+}
+
+export interface SaasCosts {
+  fixedOpex: number;
+  costPerActiveUser: number; // Server/Infra
+  paymentProcessingPct: number; // e.g. 0.029
+  paymentFixedFee: number; // e.g. 0.30
+}
+
+export interface WebSaasScenario {
+  id: string;
+  name: string;
+  horizonMonths: number;
+  acquisition: SaasAcquisition;
+  funnel: SaasFunnel;
+  pricing: {
+    monthly: SaasPlan;
+    annual: SaasPlan;
+    planMix: { monthly: number; annual: number }; // Sum 1.0
+  };
+  retention: SaasRetention;
+  costs: SaasCosts;
+}
+
+// --- Result Interfaces ---
 
 export interface MonthlyMetric {
   monthIndex: number; // 1-based
   
-  // Acquisition
+  // Acquisition / Traffic
   adSpend: number;
-  cpi: number;
-  paidInstalls: number;
-  organicInstalls: number;
-  totalInstalls: number;
+  cpi: number; // Effective CPA/CPI
+  paidInstalls: number; // OR Paid Users/Signups
+  organicInstalls: number; // OR Organic Users/Signups
+  totalInstalls: number; // OR Total New Users/Signups (Top of Funnel)
   
   // Funnel
   trials: number;
@@ -109,11 +163,11 @@ export interface MonthlyMetric {
   
   // Subscriber Base
   activeSubsTotal: number;
-  activeSubsByPlan: Record<PlanType, number>;
+  activeSubsByPlan: Record<string, number>; // Generic keys
   
   // Financials
   grossRevenue: number;
-  netRevenue: number; // After comms & refunds
+  netRevenue: number; // After comms/fees & refunds
   variableCosts: number;
   fixedOpex: number;
   contributionMargin: number; // NetRev - VarCost

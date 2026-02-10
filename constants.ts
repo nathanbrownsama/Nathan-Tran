@@ -1,12 +1,12 @@
-import { ScenarioInput } from './types';
+import { ScenarioInput, WebSaasScenario } from './types';
 
 export const DEFAULT_SCENARIO: ScenarioInput = {
   id: 'base-case',
-  name: 'Base Case',
+  name: 'Mobile Base Case',
   horizonMonths: 24,
   marketing: {
     adSpend: { startValue: 5000, growthRateMonthly: 0.0 },
-    cpi: { startValue: 2.70, growthRateMonthly: 0.0 }, // Blended: (0.2*3.5) + (0*1.5) + (0.3*5) + (0.5*1) = 2.7
+    cpi: { startValue: 2.70, growthRateMonthly: 0.0 }, 
     cpiAdvancedMode: false,
     cpiBreakdown: [
       { id: 'fb', name: 'Facebook', share: 0.2, cpi: 3.50 },
@@ -74,7 +74,7 @@ export const DEFAULT_SCENARIO: ScenarioInput = {
   },
   costs: {
     fixedOpexMonthly: 5000,
-    variableCostPerActiveSub: 0.10, // Hosting/Infra
+    variableCostPerActiveSub: 0.10, 
     variableCostPerInstall: 0.00,
     supportCostPerTicket: 5.00,
     ticketsPer1000Subs: 15,
@@ -85,7 +85,7 @@ export const BULL_CASE_PRESET: Partial<ScenarioInput> = {
   name: 'Bull Case',
   marketing: {
     ...DEFAULT_SCENARIO.marketing,
-    adSpend: { startValue: 15000, growthRateMonthly: 0.05 }, // Aggressive spend growth
+    adSpend: { startValue: 15000, growthRateMonthly: 0.05 }, 
     organicMultiplier: 0.5,
   },
   funnel: {
@@ -99,12 +99,47 @@ export const BEAR_CASE_PRESET: Partial<ScenarioInput> = {
   name: 'Bear Case',
   marketing: {
     ...DEFAULT_SCENARIO.marketing,
-    cpi: { startValue: 4.00, growthRateMonthly: 0.02 }, // Rising costs
+    cpi: { startValue: 4.00, growthRateMonthly: 0.02 }, 
     organicMultiplier: 0.05,
   },
   funnel: {
     ...DEFAULT_SCENARIO.funnel,
     installToTrialRate: 0.02,
     trialToPaidRate: 0.40,
+  }
+};
+
+// --- SaaS Defaults ---
+
+export const DEFAULT_SAAS_SCENARIO: WebSaasScenario = {
+  id: 'saas-base',
+  name: 'SaaS Base Case',
+  horizonMonths: 24,
+  acquisition: {
+    adSpend: { startValue: 10000, growthRateMonthly: 0.0 },
+    cpc: { startValue: 2.50, growthRateMonthly: 0.0 },
+    organicSessions: { startValue: 2000, growthRateMonthly: 0.05 }
+  },
+  funnel: {
+    visitorToSignupRate: 0.05,
+    signupToActivationRate: 0.60,
+    activationToTrialRate: 0.50,
+    trialToPaidRate: 0.40,
+    refundRate: 0.02
+  },
+  pricing: {
+    monthly: { id: 'm', name: 'Pro Monthly', price: 29, billingPeriod: 'monthly' },
+    annual: { id: 'a', name: 'Pro Annual', price: 290, billingPeriod: 'annual' },
+    planMix: { monthly: 0.8, annual: 0.2 }
+  },
+  retention: {
+    monthlyChurn: 0.05,
+    annualRenewalRate: 0.85
+  },
+  costs: {
+    fixedOpex: 8000,
+    costPerActiveUser: 0.50,
+    paymentProcessingPct: 0.029,
+    paymentFixedFee: 0.30
   }
 };

@@ -47,11 +47,17 @@ const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 
 const formatNumber = (val: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(val);
 
 export const Dashboard: React.FC = () => {
-  const { results, scenarios, activeScenarioId } = useStore();
-  const activeScenario = scenarios.find(s => s.id === activeScenarioId);
+  const { results, scenarios, activeScenarioId, mode, saasScenarios, activeSaasScenarioId } = useStore();
+  
+  let scenarioName = 'Scenario';
+  let horizon = 0;
 
-  if (!activeScenario) {
-     return <div className="flex items-center justify-center h-full text-gray-500 font-medium">Loading Scenario...</div>;
+  if (mode === 'mobile') {
+      const active = scenarios.find(s => s.id === activeScenarioId);
+      if (active) { scenarioName = active.name; horizon = active.horizonMonths; }
+  } else {
+      const active = saasScenarios.find(s => s.id === activeSaasScenarioId);
+      if (active) { scenarioName = active.name; horizon = active.horizonMonths; }
   }
 
   const { summary, monthlyData, unitEconomics } = results;
@@ -78,17 +84,25 @@ export const Dashboard: React.FC = () => {
     CAC: unitEconomics.cac
   })), [unitEconomics]);
 
+  // Labels based on Mode
+  const labels = {
+      installs: mode === 'mobile' ? 'Installs' : 'Total Visitors',
+      newPayers: mode === 'mobile' ? 'New Payers' : 'New Customers',
+      cpi: mode === 'mobile' ? 'CPI (Blended)' : 'Effective CAC',
+      cpiSubtext: mode === 'mobile' ? 'Spend / Install' : 'Spend / Customer',
+  };
+
   return (
     <div className="flex-1 overflow-y-auto h-screen p-8 custom-scrollbar bg-[#F5F5F7]">
       
       {/* Header */}
       <div className="flex justify-between items-end mb-10">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900 tracking-tight">{activeScenario.name}</h2>
+          <h2 className="text-3xl font-bold text-gray-900 tracking-tight">{scenarioName}</h2>
           <div className="flex items-center gap-2 mt-2">
-            <span className="bg-white border border-gray-200 px-2.5 py-1 rounded-md text-xs font-semibold text-gray-600 shadow-sm">{activeScenario.horizonMonths} Month Forecast</span>
+            <span className="bg-white border border-gray-200 px-2.5 py-1 rounded-md text-xs font-semibold text-gray-600 shadow-sm">{horizon} Month Forecast</span>
             <span className="text-gray-400 text-sm">•</span>
-            <span className="text-gray-600 text-sm font-semibold">Decision Grade Analysis</span>
+            <span className="text-gray-600 text-sm font-semibold">Decision Grade Analysis ({mode === 'mobile' ? 'Mobile' : 'SaaS'})</span>
           </div>
         </div>
         <div className="flex gap-3">
@@ -226,8 +240,8 @@ export const Dashboard: React.FC = () => {
             <thead className="text-xs font-bold text-gray-500 uppercase bg-white border-b border-gray-100">
               <tr>
                 <th className="px-6 py-4">Month</th>
-                <th className="px-6 py-4 text-right">Installs</th>
-                <th className="px-6 py-4 text-right">Payers</th>
+                <th className="px-6 py-4 text-right">{labels.installs}</th>
+                <th className="px-6 py-4 text-right">{labels.newPayers}</th>
                 <th className="px-6 py-4 text-right">Act. Subs</th>
                 <th className="px-6 py-4 text-right">Gross Rev</th>
                 <th className="px-6 py-4 text-right">Net Rev</th>
