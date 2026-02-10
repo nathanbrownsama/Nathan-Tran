@@ -3,6 +3,8 @@ import { useStore } from '../store';
 import { NumberInput, GrowthInput, ArrayInput, SectionHeader, SmartInput, InputStatus } from './InputSection';
 import { PlanType, ChannelMetric } from '../types';
 import { BULL_CASE_PRESET, BEAR_CASE_PRESET } from '../constants';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase';
 
 const CPI_BENCHMARKS: Record<string, { good: number; bad: number; name: string }> = {
   'asa': { good: 3.5, bad: 6.0, name: 'Apple Search Ads' },
@@ -72,7 +74,8 @@ export const Sidebar: React.FC = () => {
     addScenario, switchScenario, deleteScenario,
     updateScenario, updateNestedScenario,
     updateSaasScenario, updateNestedSaasScenario,
-    openTactics 
+    openTactics,
+    user, setUser
   } = useStore();
   
   const activeScenario = scenarios.find(s => s.id === activeScenarioId)!;
@@ -99,8 +102,11 @@ export const Sidebar: React.FC = () => {
       });
   };
 
-  const totalShare = activeScenario.marketing.cpiBreakdown?.reduce((sum, ch) => sum + ch.share, 0) || 0;
-  const isShareValid = Math.abs(totalShare - 1.0) < 0.01;
+  const handleLogout = () => {
+      signOut(auth).then(() => {
+          setUser({ uid: null });
+      }).catch(console.error);
+  };
 
   return (
     <div className="w-full lg:w-[420px] flex-shrink-0 bg-white border-r border-gray-200 h-screen overflow-y-auto custom-scrollbar flex flex-col z-20 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
@@ -123,6 +129,28 @@ export const Sidebar: React.FC = () => {
              >Web SaaS</button>
            </div>
         </div>
+      </div>
+
+      {/* User Profile */}
+      <div className="px-6 py-3 bg-gray-50/30 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+              {user.photoURL ? (
+                  <img src={user.photoURL} className="w-6 h-6 rounded-full border border-gray-200" alt="User" />
+              ) : (
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold">
+                      {user.email ? user.email[0].toUpperCase() : 'D'}
+                  </div>
+              )}
+              <span className="text-xs font-semibold text-gray-600 truncate max-w-[150px]">
+                  {user.email || 'Demo Mode'}
+              </span>
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="text-[11px] font-bold text-gray-400 hover:text-gray-800 transition-colors"
+          >
+              Sign Out
+          </button>
       </div>
 
       {mode === 'mobile' ? (

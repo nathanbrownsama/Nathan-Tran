@@ -1,10 +1,23 @@
 import { create } from 'zustand';
-import { DEFAULT_SCENARIO, BULL_CASE_PRESET, BEAR_CASE_PRESET, DEFAULT_SAAS_SCENARIO } from './constants';
+import { DEFAULT_SCENARIO, DEFAULT_SAAS_SCENARIO } from './constants';
 import { ScenarioInput, ModelOutput, AppMode, WebSaasScenario } from './types';
 import { calculateModel } from './utils/calculations';
 import { calculateSaasModel } from './utils/saasCalculations';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
+
+interface UserState {
+  uid: string | null;
+  email: string | null;
+  photoURL: string | null;
+  loading: boolean;
+}
 
 interface AppState {
+  // User & Auth
+  user: UserState;
+  setUser: (user: Partial<UserState>) => void;
+  
   mode: AppMode;
   
   // Mobile State
@@ -40,7 +53,25 @@ interface AppState {
 
   openTactics: (section: string) => void;
   closeTactics: () => void;
+
+  // Persistence
+  loadUserData: (uid: string) => Promise<void>;
 }
+
+// Debounce helper for Firestore writes
+let saveTimeout: NodeJS.Timeout;
+const debouncedSave = (uid: string, data: any) => {
+  if (!uid) return;
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    try {
+      await setDoc(doc(db, 'users', uid), data, { merge: true });
+      console.log('Saved to Firestore');
+    } catch (e) {
+      console.error('Error saving to Firestore', e);
+    }
+  }, 1500); // Save after 1.5s of inactivity
+};
 
 export const useStore = create<AppState>((set, get) => {
   // Init Mobile
@@ -51,6 +82,10 @@ export const useStore = create<AppState>((set, get) => {
   const defaultSaas = { ...DEFAULT_SAAS_SCENARIO, id: 'saas-base' };
 
   return {
+    user: { uid: null, email: null, photoURL: null, loading: true },
+    
+    setUser: (u) => set((state) => ({ user: { ...state.user, ...u } })),
+
     mode: 'mobile',
     
     scenarios: [defaultScenario],
@@ -62,15 +97,70 @@ export const useStore = create<AppState>((set, get) => {
     results: initialResultsMobile,
     activeTacticsSection: null,
 
+    loadUserData: async (uid) => {
+      if (!uid) return;
+      set({ user: { ...get().user, loading: true } });
+      try {
+        const docRef = doc(db, 'users', uid);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          // Merge remote data
+          set((state) => {
+            const newState = {
+              scenarios: data.scenarios || state.scenarios,
+              activeScenarioId: data.activeScenarioId || state.activeScenarioId,
+              saasScenarios: data.saasScenarios || state.saasScenarios,
+              activeSaasScenarioId: data.activeSaasScenarioId || state.activeSaasScenarioId,
+              mode: data.mode || state.mode
+            } as Partial<AppState>;
+
+            // Recalculate based on loaded data
+            let newResults;
+            if (newState.mode === 'saas') {
+               const active = newState.saasScenarios!.find((s: any) => s.id === newState.activeSaasScenarioId) || newState.saasScenarios![0];
+               newResults = calculateSaasModel(active);
+            } else {
+               const active = newState.scenarios!.find((s: any) => s.id === newState.activeScenarioId) || newState.scenarios![0];
+               newResults = calculateModel(active);
+            }
+            
+            return { ...newState, results: newResults, user: { ...state.user, loading: false } };
+          });
+        } else {
+          // New user, save defaults
+          debouncedSave(uid, {
+            scenarios: get().scenarios,
+            activeScenarioId: get().activeScenarioId,
+            saasScenarios: get().saasScenarios,
+            activeSaasScenarioId: get().activeSaasScenarioId,
+            mode: get().mode
+          });
+          set((state) => ({ user: { ...state.user, loading: false } }));
+        }
+      } catch (error) {
+        console.error("Error loading user data:", error);
+        set((state) => ({ user: { ...state.user, loading: false } }));
+      }
+    },
+
     setMode: (mode) => {
       set((state) => {
+        let results;
         if (mode === 'mobile') {
           const active = state.scenarios.find(s => s.id === state.activeScenarioId) || state.scenarios[0];
-          return { mode, results: calculateModel(active) };
+          results = calculateModel(active);
         } else {
           const active = state.saasScenarios.find(s => s.id === state.activeSaasScenarioId) || state.saasScenarios[0];
-          return { mode, results: calculateSaasModel(active) };
+          results = calculateSaasModel(active);
         }
+        const newState = { mode, results };
+        
+        // Persist
+        if (state.user.uid) debouncedSave(state.user.uid, { mode });
+        
+        return newState;
       });
     },
 
@@ -85,11 +175,15 @@ export const useStore = create<AppState>((set, get) => {
           id: newId,
           name: base.name || 'New Scenario'
         };
-        return {
+        
+        const newState = {
           scenarios: [...state.scenarios, newScenario],
           activeScenarioId: newId,
           results: calculateModel(newScenario)
         };
+
+        if (state.user.uid) debouncedSave(state.user.uid, { scenarios: newState.scenarios, activeScenarioId: newState.activeScenarioId });
+        return newState;
       });
     },
 
@@ -97,10 +191,12 @@ export const useStore = create<AppState>((set, get) => {
       set((state) => {
         const target = state.scenarios.find(s => s.id === id);
         if (!target) return {};
-        return {
+        const newState = {
           activeScenarioId: id,
           results: calculateModel(target)
         };
+        if (state.user.uid) debouncedSave(state.user.uid, { activeScenarioId: newState.activeScenarioId });
+        return newState;
       });
     },
 
@@ -110,10 +206,12 @@ export const useStore = create<AppState>((set, get) => {
           s.id === state.activeScenarioId ? { ...s, ...partial } : s
         );
         const active = updatedScenarios.find(s => s.id === state.activeScenarioId)!;
-        return {
+        const newState = {
           scenarios: updatedScenarios,
           results: calculateModel(active)
         };
+        if (state.user.uid) debouncedSave(state.user.uid, { scenarios: newState.scenarios });
+        return newState;
       });
     },
 
@@ -130,10 +228,12 @@ export const useStore = create<AppState>((set, get) => {
         const updatedScenarios = state.scenarios.map(s => 
           s.id === state.activeScenarioId ? updatedScenario : s
         );
-        return {
+        const newState = {
           scenarios: updatedScenarios,
           results: calculateModel(updatedScenario)
         };
+        if (state.user.uid) debouncedSave(state.user.uid, { scenarios: newState.scenarios });
+        return newState;
       });
     },
     
@@ -142,11 +242,13 @@ export const useStore = create<AppState>((set, get) => {
         if (state.scenarios.length <= 1) return {};
         const newScenarios = state.scenarios.filter(s => s.id !== id);
         const newActive = newScenarios[0];
-        return {
+        const newState = {
           scenarios: newScenarios,
           activeScenarioId: newActive.id,
           results: calculateModel(newActive)
-        }
+        };
+        if (state.user.uid) debouncedSave(state.user.uid, { scenarios: newState.scenarios, activeScenarioId: newState.activeScenarioId });
+        return newState;
       });
     },
 
@@ -158,17 +260,19 @@ export const useStore = create<AppState>((set, get) => {
             s.id === state.activeSaasScenarioId ? { ...s, ...partial } : s
         );
         const active = updatedScenarios.find(s => s.id === state.activeSaasScenarioId)!;
-        return {
+        const newState = {
             saasScenarios: updatedScenarios,
             results: calculateSaasModel(active)
         };
+        if (state.user.uid) debouncedSave(state.user.uid, { saasScenarios: newState.saasScenarios });
+        return newState;
       });
     },
 
     updateNestedSaasScenario: (section, data) => {
       set((state) => {
         const active = state.saasScenarios.find(s => s.id === state.activeSaasScenarioId)!;
-        // @ts-ignore - dynamic key access hard to type strictly without boilerplate
+        // @ts-ignore
         const updatedScenario = {
             ...active,
             [section]: {
@@ -179,10 +283,12 @@ export const useStore = create<AppState>((set, get) => {
         const updatedScenarios = state.saasScenarios.map(s => 
             s.id === state.activeSaasScenarioId ? updatedScenario : s
         );
-        return {
+        const newState = {
             saasScenarios: updatedScenarios,
             results: calculateSaasModel(updatedScenario)
         };
+        if (state.user.uid) debouncedSave(state.user.uid, { saasScenarios: newState.saasScenarios });
+        return newState;
       });
     },
 
