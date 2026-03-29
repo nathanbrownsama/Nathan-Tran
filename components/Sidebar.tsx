@@ -258,6 +258,7 @@ export const Sidebar: React.FC = () => {
                     )}
                 </div>
                 <NumberInput label="Organic Multiplier" value={activeScenario.marketing.organicMultiplier} onChange={(v) => updateNestedScenario('marketing', { organicMultiplier: v })} step={0.1} suffix="x" />
+                <ArrayInput label="Seasonality Multipliers (12 mo)" value={activeScenario.marketing.seasonality || [1,1,1,1,1,1,1,1,1,1,1,1]} onChange={(v) => updateNestedScenario('marketing', { seasonality: v })} rows={2} tooltip="Comma-separated multipliers for each month (e.g., 1.2 for 20% boost)" />
                 </div>
             )}
             </div>
@@ -275,7 +276,8 @@ export const Sidebar: React.FC = () => {
                         </div>
                         {activeScenario.funnel.usingTrial ? (
                             <>
-                            <NumberInput label="Install → Trial Rate" value={activeScenario.funnel.installToTrialRate} onChange={(v) => updateNestedScenario('funnel', { installToTrialRate: v })} isPercent status={getMetricStatus('installToTrial', activeScenario.funnel.installToTrialRate)} />
+                            <NumberInput label="Install → Onboarding" value={activeScenario.funnel.installToOnboardingRate ?? 0.60} onChange={(v) => updateNestedScenario('funnel', { installToOnboardingRate: v })} isPercent />
+                            <NumberInput label="Onboarding → Trial" value={activeScenario.funnel.onboardingToTrialRate ?? 0.25} onChange={(v) => updateNestedScenario('funnel', { onboardingToTrialRate: v })} isPercent />
                             <NumberInput label="Trial → Paid Rate" value={activeScenario.funnel.trialToPaidRate} onChange={(v) => updateNestedScenario('funnel', { trialToPaidRate: v })} isPercent status={getMetricStatus('trialToPaid', activeScenario.funnel.trialToPaidRate)} />
                             </>
                         ) : (
@@ -328,7 +330,8 @@ export const Sidebar: React.FC = () => {
                         {/* Simplified for brevity in this response, using Simple mode only for visual clarity */}
                         <div className="p-5 bg-gray-50 rounded-xl border border-gray-100 mb-4">
                             <h4 className="text-[13px] font-bold text-gray-700 uppercase mb-4">Monthly Churn</h4>
-                            <NumberInput label="Month 1" value={activeScenario.retention.monthly.month1Churn} onChange={(v) => updateNestedScenario('retention', { monthly: { ...activeScenario.retention.monthly, month1Churn: v }})} isPercent status={getMetricStatus('churnMonthly', activeScenario.retention.monthly.month1Churn)} />
+                            <NumberInput label="Month 1 (First Renewal)" value={activeScenario.retention.monthly.month1Churn} onChange={(v) => updateNestedScenario('retention', { monthly: { ...activeScenario.retention.monthly, month1Churn: v }})} isPercent status={getMetricStatus('churnMonthly', activeScenario.retention.monthly.month1Churn)} />
+                            <NumberInput label="Month 2 (Second Renewal)" value={activeScenario.retention.monthly.month2Churn ?? 0.15} onChange={(v) => updateNestedScenario('retention', { monthly: { ...activeScenario.retention.monthly, month2Churn: v }})} isPercent />
                             <NumberInput label="Steady State" value={activeScenario.retention.monthly.steadyStateChurn} onChange={(v) => updateNestedScenario('retention', { monthly: { ...activeScenario.retention.monthly, steadyStateChurn: v }})} isPercent status={getMetricStatus('churnMonthlySteady', activeScenario.retention.monthly.steadyStateChurn)} />
                         </div>
                         <div className="p-5 bg-gray-50 rounded-xl border border-gray-100">

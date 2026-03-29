@@ -30,11 +30,14 @@ export interface MarketingInput {
   cpiAdvancedMode: boolean;
   cpiBreakdown: ChannelMetric[];
   organicMultiplier: number; // 0.5 = 50% boost
+  seasonality: number[]; // 12 months multiplier, e.g. [1, 1, 1.2, ...]
 }
 
 export interface FunnelInput {
   usingTrial: boolean;
-  installToTrialRate: number; // 0-1
+  installToOnboardingRate: number; // 0-1
+  onboardingToTrialRate: number; // 0-1
+  installToTrialRate: number; // 0-1 (legacy or combined)
   trialToPaidRate: number; // 0-1
   installToPaidRate: number; // 0-1 (if no trial)
   refundRate: number; // 0-1
@@ -56,6 +59,7 @@ export interface RetentionInput {
   mode: 'simple' | 'advanced';
   monthly: {
     month1Churn: number;
+    month2Churn: number; // First renewal vs steady state
     steadyStateChurn: number;
     decayFactor: number;
   };
@@ -197,4 +201,5 @@ export interface ModelOutput {
     finalMrr: number;
   };
   unitEconomics: UnitEconomics;
+  cohortMrr: { month: number; cohorts: Record<string, number> }[];
 }

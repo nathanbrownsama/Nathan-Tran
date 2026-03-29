@@ -4,6 +4,8 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   LineChart, Line, BarChart, Bar, Legend, ComposedChart, ReferenceLine 
 } from 'recharts';
+import { calculateModel } from '../utils/calculations';
+import { calculateSaasModel } from '../utils/saasCalculations';
 
 const COLORS = {
   blue: '#007AFF',
@@ -46,21 +48,192 @@ const HealthBanner: React.FC<{ alerts: string[] }> = ({ alerts }) => {
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 const formatNumber = (val: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(val);
 
+const FunnelVisualization: React.FC<{ mode: 'mobile' | 'saas', scenario: any, month1Data: any }> = ({ mode, scenario, month1Data }) => {
+  const steps = [];
+  
+  if (mode === 'mobile') {
+    const installs = month1Data.totalInstalls;
+    steps.push({ label: 'Installs', value: installs, color: '#3b82f6' });
+    
+    if (scenario.funnel.usingTrial) {
+      const onboarding = installs * (scenario.funnel.installToOnboardingRate ?? 1);
+      const trials = onboarding * (scenario.funnel.onboardingToTrialRate ?? scenario.funnel.installToTrialRate);
+      const payers = trials * scenario.funnel.trialToPaidRate;
+      
+      if (scenario.funnel.installToOnboardingRate !== undefined) {
+        steps.push({ label: 'Onboarding', value: onboarding, color: '#6366f1' });
+      }
+      steps.push({ label: 'Trials', value: trials, color: '#8b5cf6' });
+      steps.push({ label: 'Payers', value: payers, color: '#10b981' });
+    } else {
+      const payers = installs * scenario.funnel.installToPaidRate;
+      steps.push({ label: 'Payers', value: payers, color: '#10b981' });
+    }
+  } else {
+    const visitors = month1Data.totalInstalls;
+    const signups = visitors * scenario.funnel.visitorToSignupRate;
+    const activated = signups * scenario.funnel.signupToActivationRate;
+    const trials = activated * scenario.funnel.activationToTrialRate;
+    const payers = trials * scenario.funnel.trialToPaidRate;
+    
+    steps.push({ label: 'Visitors', value: visitors, color: '#3b82f6' });
+    steps.push({ label: 'Signups', value: signups, color: '#6366f1' });
+    steps.push({ label: 'Activated', value: activated, color: '#8b5cf6' });
+    steps.push({ label: 'Trials', value: trials, color: '#d946ef' });
+    steps.push({ label: 'Payers', value: payers, color: '#10b981' });
+  }
+
+  const maxVal = steps[0]?.value || 1;
+
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] mb-10">
+      <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">Month 1 Funnel</h3>
+      <div className="flex flex-col gap-3">
+        {steps.map((step, idx) => {
+          const pctOfMax = maxVal > 0 ? (step.value / maxVal) * 100 : 0;
+          const pctOfPrev = idx === 0 ? 100 : (steps[idx - 1].value > 0 ? (step.value / steps[idx - 1].value) * 100 : 0);
+          return (
+            <div key={step.label} className="flex items-center gap-4">
+              <div className="w-24 text-right text-sm font-bold text-gray-700">{step.label}</div>
+              <div className="flex-1 h-10 bg-gray-50 rounded-r-lg relative flex items-center">
+                <div 
+                  className="absolute left-0 top-0 bottom-0 rounded-r-lg transition-all duration-500"
+                  style={{ width: `${pctOfMax}%`, backgroundColor: step.color, opacity: 0.8 }}
+                ></div>
+                <div className="relative z-10 px-3 font-numeric font-bold text-gray-900 flex items-center justify-between w-full">
+                  <span>{formatNumber(step.value)}</span>
+                  {idx > 0 && <span className="text-xs text-gray-600 bg-white/50 px-2 py-0.5 rounded backdrop-blur-sm">{pctOfPrev.toFixed(1)}%</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const SensitivityAnalysis: React.FC<{ scenario: any, mode: 'mobile' | 'saas' }> = ({ scenario, mode }) => {
+  const baseResult = mode === 'mobile' ? calculateModel(scenario) : calculateSaasModel(scenario);
+  const baseProfit = baseResult.summary.totalProfit;
+  
+  const variations = [];
+  
+  if (mode === 'mobile') {
+    const cpiUp = JSON.parse(JSON.stringify(scenario));
+    cpiUp.marketing.cpi.startValue *= 1.2;
+    const resCpiUp = calculateModel(cpiUp);
+    variations.push({ name: 'CPI +20%', profitDelta: resCpiUp.summary.totalProfit - baseProfit, breakEven: resCpiUp.summary.breakEvenMonth });
+    
+    const ttpDown = JSON.parse(JSON.stringify(scenario));
+    ttpDown.funnel.trialToPaidRate *= 0.85;
+    const resTtpDown = calculateModel(ttpDown);
+    variations.push({ name: 'Trial to Paid -15%', profitDelta: resTtpDown.summary.totalProfit - baseProfit, breakEven: resTtpDown.summary.breakEvenMonth });
+    
+    const churnUp = JSON.parse(JSON.stringify(scenario));
+    churnUp.retention.monthly.month1Churn = Math.min(1, churnUp.retention.monthly.month1Churn * 1.2);
+    const resChurnUp = calculateModel(churnUp);
+    variations.push({ name: 'M1 Churn +20%', profitDelta: resChurnUp.summary.totalProfit - baseProfit, breakEven: resChurnUp.summary.breakEvenMonth });
+
+    const onboardingDown = JSON.parse(JSON.stringify(scenario));
+    onboardingDown.funnel.installToOnboardingRate = (onboardingDown.funnel.installToOnboardingRate ?? 1) * 0.9;
+    const resOnboardingDown = calculateModel(onboardingDown);
+    variations.push({ name: 'Install to Onboarding -10%', profitDelta: resOnboardingDown.summary.totalProfit - baseProfit, breakEven: resOnboardingDown.summary.breakEvenMonth });
+
+    const organicUp = JSON.parse(JSON.stringify(scenario));
+    organicUp.marketing.organicUplift *= 1.2;
+    const resOrganicUp = calculateModel(organicUp);
+    variations.push({ name: 'Organic Uplift +20%', profitDelta: resOrganicUp.summary.totalProfit - baseProfit, breakEven: resOrganicUp.summary.breakEvenMonth });
+  } else {
+    const cpcUp = JSON.parse(JSON.stringify(scenario));
+    cpcUp.acquisition.cpc.startValue *= 1.2;
+    const resCpcUp = calculateSaasModel(cpcUp);
+    variations.push({ name: 'CPC +20%', profitDelta: resCpcUp.summary.totalProfit - baseProfit, breakEven: resCpcUp.summary.breakEvenMonth });
+    
+    const ttpDown = JSON.parse(JSON.stringify(scenario));
+    ttpDown.funnel.trialToPaidRate *= 0.85;
+    const resTtpDown = calculateSaasModel(ttpDown);
+    variations.push({ name: 'Trial to Paid -15%', profitDelta: resTtpDown.summary.totalProfit - baseProfit, breakEven: resTtpDown.summary.breakEvenMonth });
+    
+    const churnUp = JSON.parse(JSON.stringify(scenario));
+    churnUp.retention.monthlyChurn = Math.min(1, churnUp.retention.monthlyChurn * 1.2);
+    const resChurnUp = calculateSaasModel(churnUp);
+    variations.push({ name: 'Monthly Churn +20%', profitDelta: resChurnUp.summary.totalProfit - baseProfit, breakEven: resChurnUp.summary.breakEvenMonth });
+
+    const signupDown = JSON.parse(JSON.stringify(scenario));
+    signupDown.funnel.visitorToSignupRate *= 0.9;
+    const resSignupDown = calculateSaasModel(signupDown);
+    variations.push({ name: 'Visitor to Signup -10%', profitDelta: resSignupDown.summary.totalProfit - baseProfit, breakEven: resSignupDown.summary.breakEvenMonth });
+
+    const organicUp = JSON.parse(JSON.stringify(scenario));
+    organicUp.acquisition.organicSessions.startValue *= 1.2;
+    const resOrganicUp = calculateSaasModel(organicUp);
+    variations.push({ name: 'Organic Sessions +20%', profitDelta: resOrganicUp.summary.totalProfit - baseProfit, breakEven: resOrganicUp.summary.breakEvenMonth });
+  }
+
+  // Sort by absolute profit delta to show biggest impact first
+  variations.sort((a, b) => Math.abs(b.profitDelta) - Math.abs(a.profitDelta));
+
+  const maxDelta = Math.max(...variations.map(v => Math.abs(v.profitDelta)));
+
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+      <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">Sensitivity Analysis (Tornado)</h3>
+      <div className="space-y-4">
+        {variations.map(v => {
+          const widthPct = maxDelta > 0 ? (Math.abs(v.profitDelta) / maxDelta) * 100 : 0;
+          const isPositive = v.profitDelta >= 0;
+          return (
+            <div key={v.name} className="flex flex-col gap-1 p-3 bg-gray-50 rounded-lg">
+              <div className="flex justify-between items-center">
+                <div className="font-semibold text-gray-800 text-sm">{v.name}</div>
+                <div className="text-right">
+                  <div className={`text-sm font-bold ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {isPositive ? '+' : ''}{formatCurrency(v.profitDelta)} Profit
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Break-even: {v.breakEven ? `M${v.breakEven}` : 'Never'}
+                  </div>
+                </div>
+              </div>
+              <div className="w-full h-1.5 bg-gray-200 rounded-full mt-1 overflow-hidden relative">
+                {isPositive ? (
+                  <div 
+                    className="absolute top-0 bottom-0 bg-emerald-500 rounded-r-full"
+                    style={{ left: '50%', width: `${(widthPct / 2)}%` }}
+                  />
+                ) : (
+                  <div 
+                    className="absolute top-0 bottom-0 bg-rose-500 rounded-l-full"
+                    style={{ right: '50%', width: `${(widthPct / 2)}%` }}
+                  />
+                )}
+                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gray-400" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export const Dashboard: React.FC = () => {
   const { results, scenarios, activeScenarioId, mode, saasScenarios, activeSaasScenarioId } = useStore();
   
   let scenarioName = 'Scenario';
   let horizon = 0;
+  let activeScenario: any = null;
 
   if (mode === 'mobile') {
       const active = scenarios.find(s => s.id === activeScenarioId);
-      if (active) { scenarioName = active.name; horizon = active.horizonMonths; }
+      if (active) { scenarioName = active.name; horizon = active.horizonMonths; activeScenario = active; }
   } else {
       const active = saasScenarios.find(s => s.id === activeSaasScenarioId);
-      if (active) { scenarioName = active.name; horizon = active.horizonMonths; }
+      if (active) { scenarioName = active.name; horizon = active.horizonMonths; activeScenario = active; }
   }
 
-  const { summary, monthlyData, unitEconomics } = results;
+  const { summary, monthlyData, unitEconomics, cohortMrr } = results;
 
   // Logic for Health Checks
   const alerts: string[] = [];
@@ -83,6 +256,17 @@ export const Dashboard: React.FC = () => {
     Contribution: c.cumulativeContribution,
     CAC: unitEconomics.cac
   })), [unitEconomics]);
+
+  const cohortChartData = useMemo(() => {
+    if (!cohortMrr) return [];
+    return cohortMrr.map(m => {
+      const dataPoint: any = { name: `M${m.month}` };
+      Object.entries(m.cohorts).forEach(([cohortName, mrr]) => {
+        dataPoint[cohortName] = mrr;
+      });
+      return dataPoint;
+    });
+  }, [cohortMrr]);
 
   // Labels based on Mode
   const labels = {
@@ -115,6 +299,10 @@ export const Dashboard: React.FC = () => {
       </div>
 
       <HealthBanner alerts={alerts} />
+
+      {activeScenario && monthlyData.length > 0 && (
+        <FunnelVisualization mode={mode} scenario={activeScenario} month1Data={monthlyData[0]} />
+      )}
 
       {/* KPI Grid */}
       <h3 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2">
@@ -228,6 +416,44 @@ export const Dashboard: React.FC = () => {
             </ResponsiveContainer>
           </div>
         </div>
+      </div>
+
+      {/* Charts Row 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+        {/* Cohort MRR */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+          <div className="flex justify-between items-center mb-6">
+             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Cohort MRR</h3>
+          </div>
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={cohortChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.lightGray} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{fontSize: 12, fill: COLORS.darkGray, fontWeight: 500}} dy={10} minTickGap={30} />
+                <YAxis tickFormatter={(val) => `$${val/1000}k`} tickLine={false} axisLine={false} tick={{fontSize: 12, fill: COLORS.darkGray, fontWeight: 500}} />
+                <Tooltip 
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontFamily: 'Outfit'}}
+                  formatter={(val: number) => formatCurrency(val)} 
+                />
+                {cohortChartData.length > 0 && Object.keys(cohortChartData[0]).filter(k => k !== 'name').map((cohort, idx) => (
+                  <Area 
+                    key={cohort} 
+                    type="monotone" 
+                    dataKey={cohort} 
+                    stackId="1" 
+                    stroke={`hsl(${(idx * 137.5) % 360}, 70%, 50%)`} 
+                    fill={`hsl(${(idx * 137.5) % 360}, 70%, 50%)`} 
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Sensitivity Analysis */}
+        {activeScenario && (
+          <SensitivityAnalysis scenario={activeScenario} mode={mode} />
+        )}
       </div>
 
       {/* Data Table */}

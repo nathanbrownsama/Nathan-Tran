@@ -47,11 +47,16 @@ function getSurvivalCurve(input: ScenarioInput, plan: PlanType, length: number):
   if (plan === 'monthly') {
     let currentChurn = retention.monthly.month1Churn;
     for (let i = 1; i < length; i++) {
+      if (i === 1) {
+        currentChurn = retention.monthly.month1Churn;
+      } else if (i === 2) {
+        currentChurn = retention.monthly.month2Churn ?? retention.monthly.steadyStateChurn;
+      } else {
+        currentChurn = currentChurn - (currentChurn - retention.monthly.steadyStateChurn) * retention.monthly.decayFactor;
+        if (currentChurn < retention.monthly.steadyStateChurn) currentChurn = retention.monthly.steadyStateChurn;
+      }
       const prev = curve[i - 1];
       curve.push(prev * (1 - currentChurn));
-      // Decay churn
-      currentChurn = currentChurn - (currentChurn - retention.monthly.steadyStateChurn) * retention.monthly.decayFactor;
-      if (currentChurn < retention.monthly.steadyStateChurn) currentChurn = retention.monthly.steadyStateChurn;
     }
   } else if (plan === 'annual') {
     // Step function: 100% for months 0-11, then drops at 12, 24...
@@ -103,6 +108,7 @@ export function calculateModel(input: ScenarioInput): ModelOutput {
   };
 
   const monthlyData: MonthlyMetric[] = [];
+  const cohortMrr: { month: number; cohorts: Record<string, number> }[] = [];
   let cumulativeProfit = 0;
   
   // Track Payers: cohorts[plan][month_acquired] = count
@@ -120,7 +126,8 @@ export function calculateModel(input: ScenarioInput): ModelOutput {
     const currentAdSpend = marketing.adSpend.startValue * Math.pow(1 + marketing.adSpend.growthRateMonthly, m - 1);
     const currentCpi = marketing.cpi.startValue * Math.pow(1 + marketing.cpi.growthRateMonthly, m - 1);
     
-    const paidInstalls = currentCpi > 0 ? currentAdSpend / currentCpi : 0;
+    const seasonalityMultiplier = marketing.seasonality ? marketing.seasonality[(m - 1) % 12] : 1;
+    const paidInstalls = currentCpi > 0 ? (currentAdSpend / currentCpi) * seasonalityMultiplier : 0;
     const organicInstalls = paidInstalls * marketing.organicMultiplier;
     const totalInstalls = paidInstalls + organicInstalls;
 
@@ -128,7 +135,10 @@ export function calculateModel(input: ScenarioInput): ModelOutput {
     let trials = 0;
     let newPayers = 0;
     if (funnel.usingTrial) {
-      trials = totalInstalls * funnel.installToTrialRate;
+      const effectiveInstallToTrial = (funnel.installToOnboardingRate !== undefined && funnel.onboardingToTrialRate !== undefined) 
+        ? (funnel.installToOnboardingRate * funnel.onboardingToTrialRate) 
+        : funnel.installToTrialRate;
+      trials = totalInstalls * effectiveInstallToTrial;
       newPayers = trials * funnel.trialToPaidRate;
     } else {
       newPayers = totalInstalls * funnel.installToPaidRate;
@@ -153,6 +163,7 @@ export function calculateModel(input: ScenarioInput): ModelOutput {
     let grossRevenue = 0;
     let netRevenue = 0;
     let mrr = 0;
+    const currentCohortMrr: Record<string, number> = {};
 
     (Object.keys(plans) as PlanType[]).forEach(plan => {
       let planActive = 0;
@@ -197,10 +208,15 @@ export function calculateModel(input: ScenarioInput): ModelOutput {
         }
 
         // MRR Logic (Normalized monthly value)
-        if (plan === 'monthly') mrr += currentActive * config.price;
-        if (plan === 'weekly') mrr += currentActive * config.price * 4.33;
-        if (plan === 'annual') mrr += currentActive * (config.price / 12);
-        // Lifetime excluded from MRR usually, or amortized. We exclude.
+        let cohortMrrForC = 0;
+        if (plan === 'monthly') cohortMrrForC = currentActive * config.price;
+        if (plan === 'weekly') cohortMrrForC = currentActive * config.price * 4.33;
+        if (plan === 'annual') cohortMrrForC = currentActive * (config.price / 12);
+        
+        mrr += cohortMrrForC;
+        if (cohortMrrForC > 0) {
+          currentCohortMrr[`Month ${c}`] = (currentCohortMrr[`Month ${c}`] || 0) + cohortMrrForC;
+        }
       }
       
       activeSubsByPlan[plan] = planActive;
@@ -242,6 +258,8 @@ export function calculateModel(input: ScenarioInput): ModelOutput {
       mrr,
       arr: mrr * 12
     });
+    
+    cohortMrr.push({ month: m, cohorts: currentCohortMrr });
   }
 
 
@@ -320,6 +338,7 @@ export function calculateModel(input: ScenarioInput): ModelOutput {
       ltvCacRatio: blendedCac > 0 ? cumContribution / blendedCac : 0,
       paybackMonths,
       contributionCurve
-    }
+    },
+    cohortMrr
   };
 }

@@ -6,6 +6,7 @@ export function calculateSaasModel(input: WebSaasScenario): ModelOutput {
 
   const monthlyData: MonthlyMetric[] = [];
   let cumulativeProfit = 0;
+  const cohortMrr: { month: number; cohorts: Record<string, number> }[] = [];
 
   // Track cohorts for survival
   // cohorts[plan][month_acquired] = count
@@ -42,6 +43,7 @@ export function calculateSaasModel(input: WebSaasScenario): ModelOutput {
     let processingFees = 0;
     let mrr = 0;
     const activeSubsByPlan = { monthly: 0, annual: 0, weekly: 0, lifetime: 0 }; // align with shared types
+    const currentMonthCohortMrr: Record<string, number> = {};
 
     // Monthly Plan Logic
     for (let c = 1; c <= m; c++) {
@@ -59,6 +61,7 @@ export function calculateSaasModel(input: WebSaasScenario): ModelOutput {
       const revenue = active * pricing.monthly.price;
       grossRevenue += revenue;
       mrr += revenue;
+      currentMonthCohortMrr[`Cohort M${c}`] = (currentMonthCohortMrr[`Cohort M${c}`] || 0) + revenue;
       
       // Fees
       processingFees += (revenue * costs.paymentProcessingPct) + (active * costs.paymentFixedFee);
@@ -77,7 +80,9 @@ export function calculateSaasModel(input: WebSaasScenario): ModelOutput {
 
       activeSubsByPlan.annual += active;
       activeSubsTotal += active;
-      mrr += active * (pricing.annual.price / 12);
+      const annualMrr = active * (pricing.annual.price / 12);
+      mrr += annualMrr;
+      currentMonthCohortMrr[`Cohort M${c}`] = (currentMonthCohortMrr[`Cohort M${c}`] || 0) + annualMrr;
 
       // Billing Event (Month 0, 12, 24...)
       if (age % 12 === 0) {
@@ -87,6 +92,8 @@ export function calculateSaasModel(input: WebSaasScenario): ModelOutput {
         processingFees += (revenue * costs.paymentProcessingPct) + (active * costs.paymentFixedFee);
       }
     }
+    
+    cohortMrr.push({ month: m, cohorts: currentMonthCohortMrr });
 
     // 4. Financials
     const netRevenue = (grossRevenue * (1 - funnel.refundRate)) - processingFees;
@@ -183,6 +190,7 @@ export function calculateSaasModel(input: WebSaasScenario): ModelOutput {
       ltvCacRatio: blendedCac > 0 ? cumContribution / blendedCac : 0,
       paybackMonths: paybackMonthData ? paybackMonthData.month : null,
       contributionCurve
-    }
+    },
+    cohortMrr
   };
 }

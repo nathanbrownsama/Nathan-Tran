@@ -6,22 +6,26 @@ export const DEFAULT_SCENARIO: ScenarioInput = {
   horizonMonths: 24,
   marketing: {
     adSpend: { startValue: 5000, growthRateMonthly: 0.0 },
-    cpi: { startValue: 2.70, growthRateMonthly: 0.0 }, 
+    cpi: { startValue: 3.20, growthRateMonthly: 0.0 }, 
     cpiAdvancedMode: false,
     cpiBreakdown: [
-      { id: 'fb', name: 'Facebook', share: 0.2, cpi: 3.50 },
-      { id: 'tt', name: 'TikTok', share: 0.0, cpi: 1.50 },
-      { id: 'asa', name: 'Apple Search', share: 0.3, cpi: 5.00 },
-      { id: 'google', name: 'Google Ads', share: 0.5, cpi: 1.00 },
+      { id: 'tt', name: 'TikTok', share: 0.2, cpi: 2.00 },
+      { id: 'fb', name: 'Meta', share: 0.3, cpi: 3.75 },
+      { id: 'google', name: 'Google UAC', share: 0.2, cpi: 3.25 },
+      { id: 'asa', name: 'Apple Search', share: 0.2, cpi: 3.50 },
+      { id: 'snap', name: 'Snapchat', share: 0.1, cpi: 2.25 },
     ],
-    organicMultiplier: 0.2,
+    organicMultiplier: 0.3,
+    seasonality: [0.90, 0.90, 0.90, 1.00, 1.00, 1.00, 1.10, 1.10, 1.10, 1.25, 1.25, 1.25],
   },
   funnel: {
     usingTrial: true,
-    installToTrialRate: 0.03,
-    trialToPaidRate: 0.60,
+    installToOnboardingRate: 0.50,
+    onboardingToTrialRate: 0.20,
+    installToTrialRate: 0.10, // Keep for legacy, but we'll use onboarding * trial
+    trialToPaidRate: 0.40,
     installToPaidRate: 0.05, 
-    refundRate: 0.05,
+    refundRate: 0.04,
     planMix: {
       weekly: 0.0,
       monthly: 0.6,
@@ -59,7 +63,8 @@ export const DEFAULT_SCENARIO: ScenarioInput = {
     },
     monthly: {
       month1Churn: 0.30,
-      steadyStateChurn: 0.05,
+      month2Churn: 0.15,
+      steadyStateChurn: 0.08,
       decayFactor: 0.5,
     },
     annual: {
@@ -86,12 +91,35 @@ export const BULL_CASE_PRESET: Partial<ScenarioInput> = {
   marketing: {
     ...DEFAULT_SCENARIO.marketing,
     adSpend: { startValue: 15000, growthRateMonthly: 0.05 }, 
+    cpi: { startValue: 2.00, growthRateMonthly: 0.0 },
+    cpiBreakdown: [
+      { id: 'tt', name: 'TikTok', share: 0.2, cpi: 0.70 },
+      { id: 'fb', name: 'Meta', share: 0.3, cpi: 2.00 },
+      { id: 'google', name: 'Google UAC', share: 0.2, cpi: 2.65 },
+      { id: 'asa', name: 'Apple Search', share: 0.2, cpi: 2.00 },
+      { id: 'snap', name: 'Snapchat', share: 0.1, cpi: 1.50 },
+    ],
     organicMultiplier: 0.5,
   },
   funnel: {
     ...DEFAULT_SCENARIO.funnel,
-    installToTrialRate: 0.20,
-    trialToPaidRate: 0.70,
+    installToOnboardingRate: 0.65,
+    onboardingToTrialRate: 0.30,
+    installToTrialRate: 0.15,
+    trialToPaidRate: 0.60,
+    refundRate: 0.025,
+  },
+  retention: {
+    ...DEFAULT_SCENARIO.retention,
+    monthly: {
+      ...DEFAULT_SCENARIO.retention.monthly,
+      month1Churn: 0.15,
+      steadyStateChurn: 0.05,
+    },
+    annual: {
+      ...DEFAULT_SCENARIO.retention.annual,
+      year1Churn: 0.45,
+    }
   }
 };
 
@@ -99,13 +127,36 @@ export const BEAR_CASE_PRESET: Partial<ScenarioInput> = {
   name: 'Bear Case',
   marketing: {
     ...DEFAULT_SCENARIO.marketing,
-    cpi: { startValue: 4.00, growthRateMonthly: 0.02 }, 
-    organicMultiplier: 0.05,
+    adSpend: { startValue: 2000, growthRateMonthly: 0.0 }, 
+    cpi: { startValue: 5.00, growthRateMonthly: 0.02 }, 
+    cpiBreakdown: [
+      { id: 'tt', name: 'TikTok', share: 0.2, cpi: 4.50 },
+      { id: 'fb', name: 'Meta', share: 0.3, cpi: 5.50 },
+      { id: 'google', name: 'Google UAC', share: 0.2, cpi: 4.00 },
+      { id: 'asa', name: 'Apple Search', share: 0.2, cpi: 5.00 },
+      { id: 'snap', name: 'Snapchat', share: 0.1, cpi: 3.00 },
+    ],
+    organicMultiplier: 0.1,
   },
   funnel: {
     ...DEFAULT_SCENARIO.funnel,
-    installToTrialRate: 0.02,
-    trialToPaidRate: 0.40,
+    installToOnboardingRate: 0.30,
+    onboardingToTrialRate: 0.12,
+    installToTrialRate: 0.04,
+    trialToPaidRate: 0.25,
+    refundRate: 0.07,
+  },
+  retention: {
+    ...DEFAULT_SCENARIO.retention,
+    monthly: {
+      ...DEFAULT_SCENARIO.retention.monthly,
+      month1Churn: 0.45,
+      steadyStateChurn: 0.12,
+    },
+    annual: {
+      ...DEFAULT_SCENARIO.retention.annual,
+      year1Churn: 0.75,
+    }
   }
 };
 
