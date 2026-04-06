@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { GrowthTacticsPanel } from './components/GrowthTacticsPanel';
@@ -36,6 +37,7 @@ function App() {
       <Sidebar />
       <Dashboard />
       <GrowthTacticsPanel />
+      <SpeedInsights />
     </div>
   );
 }
