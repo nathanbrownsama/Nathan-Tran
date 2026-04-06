@@ -276,20 +276,20 @@ export const Sidebar: React.FC = () => {
                         </div>
                         {activeScenario.funnel.usingTrial ? (
                             <>
-                            <NumberInput label="Install → Onboarding" value={activeScenario.funnel.installToOnboardingRate ?? 0.60} onChange={(v) => updateNestedScenario('funnel', { installToOnboardingRate: v })} isPercent />
-                            <NumberInput label="Onboarding → Trial" value={activeScenario.funnel.onboardingToTrialRate ?? 0.25} onChange={(v) => updateNestedScenario('funnel', { onboardingToTrialRate: v })} isPercent />
-                            <NumberInput label="Trial → Paid Rate" value={activeScenario.funnel.trialToPaidRate} onChange={(v) => updateNestedScenario('funnel', { trialToPaidRate: v })} isPercent status={getMetricStatus('trialToPaid', activeScenario.funnel.trialToPaidRate)} />
+                            <NumberInput label="Install → Onboarding" value={activeScenario.funnel.installToOnboardingRate ?? 0.60} onChange={(v) => updateNestedScenario('funnel', { installToOnboardingRate: v })} isPercent max={100} />
+                            <NumberInput label="Onboarding → Trial" value={activeScenario.funnel.onboardingToTrialRate ?? 0.25} onChange={(v) => updateNestedScenario('funnel', { onboardingToTrialRate: v })} isPercent max={100} />
+                            <NumberInput label="Trial → Paid Rate" value={activeScenario.funnel.trialToPaidRate} onChange={(v) => updateNestedScenario('funnel', { trialToPaidRate: v })} isPercent max={100} status={getMetricStatus('trialToPaid', activeScenario.funnel.trialToPaidRate)} />
                             </>
                         ) : (
-                            <NumberInput label="Install → Paid Rate" value={activeScenario.funnel.installToPaidRate} onChange={(v) => updateNestedScenario('funnel', { installToPaidRate: v })} isPercent />
+                            <NumberInput label="Install → Paid Rate" value={activeScenario.funnel.installToPaidRate} onChange={(v) => updateNestedScenario('funnel', { installToPaidRate: v })} isPercent max={100} />
                         )}
-                        <NumberInput label="Refund Rate" value={activeScenario.funnel.refundRate} onChange={(v) => updateNestedScenario('funnel', { refundRate: v })} isPercent status={getMetricStatus('refund', activeScenario.funnel.refundRate)} />
+                        <NumberInput label="Refund Rate" value={activeScenario.funnel.refundRate} onChange={(v) => updateNestedScenario('funnel', { refundRate: v })} isPercent max={100} status={getMetricStatus('refund', activeScenario.funnel.refundRate)} />
                         
                         <div className="pt-6 mt-4 border-t border-gray-100">
                             <h4 className="text-[13px] font-bold text-gray-500 uppercase tracking-widest mb-4">Plan Mix</h4>
                             <div className="grid grid-cols-2 gap-x-4">
                                 {(['weekly', 'monthly', 'annual', 'lifetime'] as const).map(p => (
-                                    <NumberInput key={p} label={p.charAt(0).toUpperCase() + p.slice(1)} value={activeScenario.funnel.planMix[p]} onChange={(v) => updateNestedScenario('funnel', { planMix: { ...activeScenario.funnel.planMix, [p]: v } })} isPercent />
+                                    <NumberInput key={p} label={p.charAt(0).toUpperCase() + p.slice(1)} value={activeScenario.funnel.planMix[p]} onChange={(v) => updateNestedScenario('funnel', { planMix: { ...activeScenario.funnel.planMix, [p]: v } })} isPercent max={100} />
                                 ))}
                             </div>
                         </div>
@@ -387,11 +387,11 @@ export const Sidebar: React.FC = () => {
                     <SectionHeader title="Funnel & Conversion" isOpen={sections.funnel} toggle={() => toggle('funnel')} />
                     {sections.funnel && (
                         <div className="px-6 pb-6 animate-fadeIn">
-                            <NumberInput label="Visitor → Signup" value={activeSaasScenario.funnel.visitorToSignupRate} onChange={(v) => updateNestedSaasScenario('funnel', { visitorToSignupRate: v })} isPercent />
-                            <NumberInput label="Signup → Activated" value={activeSaasScenario.funnel.signupToActivationRate} onChange={(v) => updateNestedSaasScenario('funnel', { signupToActivationRate: v })} isPercent />
-                            <NumberInput label="Activated → Trial" value={activeSaasScenario.funnel.activationToTrialRate} onChange={(v) => updateNestedSaasScenario('funnel', { activationToTrialRate: v })} isPercent />
-                            <NumberInput label="Trial → Paid" value={activeSaasScenario.funnel.trialToPaidRate} onChange={(v) => updateNestedSaasScenario('funnel', { trialToPaidRate: v })} isPercent />
-                            <NumberInput label="Refund Rate" value={activeSaasScenario.funnel.refundRate} onChange={(v) => updateNestedSaasScenario('funnel', { refundRate: v })} isPercent />
+                            <NumberInput label="Visitor → Signup" value={activeSaasScenario.funnel.visitorToSignupRate} onChange={(v) => updateNestedSaasScenario('funnel', { visitorToSignupRate: v })} isPercent max={100} />
+                            <NumberInput label="Signup → Activated" value={activeSaasScenario.funnel.signupToActivationRate} onChange={(v) => updateNestedSaasScenario('funnel', { signupToActivationRate: v })} isPercent max={100} />
+                            <NumberInput label="Activated → Trial" value={activeSaasScenario.funnel.activationToTrialRate} onChange={(v) => updateNestedSaasScenario('funnel', { activationToTrialRate: v })} isPercent max={100} />
+                            <NumberInput label="Trial → Paid" value={activeSaasScenario.funnel.trialToPaidRate} onChange={(v) => updateNestedSaasScenario('funnel', { trialToPaidRate: v })} isPercent max={100} />
+                            <NumberInput label="Refund Rate" value={activeSaasScenario.funnel.refundRate} onChange={(v) => updateNestedSaasScenario('funnel', { refundRate: v })} isPercent max={100} />
                         </div>
                     )}
                 </div>
